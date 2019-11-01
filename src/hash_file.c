@@ -36,7 +36,7 @@ HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
   data = BF_Block_GetData(mBlock);
   memcpy(data, "HT", 2);
   memset(data + 2, 0, sizeof(int));
-  memset(data + 2 + 2*sizeof(int), buckets, sizeof(int));
+  memcpy(data + 2 + 2*sizeof(int), &buckets, sizeof(int));
   BF_Block_SetDirty(mBlock);
   CALL_BF(BF_UnpinBlock(mBlock));
 
@@ -89,8 +89,25 @@ HT_ErrorCode HT_CloseFile(int indexDesc) {
   return HT_OK;
 }
 
+int hashFunctions(int indexDesc, int id) {
+  int buckets = 2;
+  char *data;
+  BF_Block *mBlock;
+  BF_Block_Init(&mBlock);
+
+  CALL_BF(BF_GetBlock(indexDesc, 0, mBlock));
+  data = BF_Block_GetData(mBlock);
+  buckets = *(int*)(data + 2 + sizeof(int));
+  printf("TOSA %d\n", buckets);
+  CALL_BF(BF_UnpinBlock(mBlock));
+  BF_Block_Destroy(&mBlock);
+
+  return id % buckets;
+}
+
 HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
   //insert code here
+  printf("ELA %d\n", hashFunctions(indexDesc, 127));
   return HT_OK;
 }
 
