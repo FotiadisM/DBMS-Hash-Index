@@ -6,7 +6,7 @@
 #include "hash_file.h"
 
 #define RECORDS_NUM 1700 // you can change it if you want
-#define BUCKETS_NUM 13  // you can change it if you want
+#define BUCKETS_NUM 127  // you can change it if you want
 #define FILE_NAME "data.db"
 
 const char* names[] = {
