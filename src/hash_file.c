@@ -66,11 +66,26 @@ HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
 
 HT_ErrorCode HT_OpenIndex(const char *fileName, int *indexDesc){
   //insert code here
+  char *data, code[2];
+  BF_Block *mBlock;
+  BF_Block_Init(&mBlock);
+
+  CALL_BF(BF_OpenFile(fileName, indexDesc))
+  CALL_BF(BF_GetBlock(*indexDesc, 0, mBlock));
+  data = BF_Block_GetData(mBlock);
+  memcpy(code, data, 2);
+  if(strcmp(code, "HT")) {
+    return HT_ERROR;
+  }
+
+  CALL_BF(BF_UnpinBlock(mBlock));
+  BF_Block_Destroy(&mBlock);
   return HT_OK;
 }
 
 HT_ErrorCode HT_CloseFile(int indexDesc) {
   //insert code here
+  CALL_BF(BF_CloseFile(indexDesc));
   return HT_OK;
 }
 
