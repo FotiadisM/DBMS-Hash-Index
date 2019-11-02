@@ -15,6 +15,22 @@
   }                         \
 }
 
+int hashFunctions(int indexDesc, int id) {
+  int buckets;
+  char *data;
+  BF_Block *mBlock;
+  BF_Block_Init(&mBlock);
+
+  CALL_BF(BF_GetBlock(indexDesc, 0, mBlock));
+  data = BF_Block_GetData(mBlock);
+  buckets = *(int*)(data + 2 + sizeof(int));
+
+  CALL_BF(BF_UnpinBlock(mBlock));
+  BF_Block_Destroy(&mBlock);
+
+  return id % buckets;
+}
+
 HT_ErrorCode HT_Init() {
   //insert code here
   return HT_OK;
@@ -22,43 +38,40 @@ HT_ErrorCode HT_Init() {
 
 HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
   //insert code here
-  int fd;
-  char *data;
+  int indexDesc;
+  char *data, *tmpData;
   BF_Block *mBlock, *tmpBlock;
   BF_Block_Init(&mBlock);
   BF_Block_Init(&tmpBlock);
 
-  BF_Init(LRU);
-
   CALL_BF(BF_CreateFile(filename));
-  CALL_BF(BF_OpenFile(filename, &fd));
-  CALL_BF(BF_AllocateBlock(fd, mBlock));
+  CALL_BF(BF_OpenFile(filename, &indexDesc));
+
+  CALL_BF(BF_AllocateBlock(indexDesc, mBlock));                 // 1st Block == General information Block
   data = BF_Block_GetData(mBlock);
+  memset(data, 0, BF_BLOCK_SIZE); // optional
   memcpy(data, "HT", 2);
-  memset(data + 2, 0, sizeof(int));
-  memcpy(data + 2 + 2*sizeof(int), &buckets, sizeof(int));
+  memset(data + 2, 0, sizeof(int));                        // stroing the number of records
+  memcpy(data + 2 + sizeof(int), &buckets, sizeof(int));  // storing the number of buckets
   BF_Block_SetDirty(mBlock);
   CALL_BF(BF_UnpinBlock(mBlock));
 
-  CALL_BF(BF_AllocateBlock(fd, mBlock));
+  CALL_BF(BF_AllocateBlock(indexDesc, mBlock));                 // 2nd Block == 1st Index Block
   data = BF_Block_GetData(mBlock);
-  memset(data, 0, sizeof(int));
+  memset(data, 0, BF_BLOCK_SIZE);
   for(int i=0; i<buckets; i++) {
     int k = i+2;
-    memcpy(data + sizeof(int) + i*sizeof(int), &k, sizeof(int));
+
+    memcpy(data + sizeof(int) + i*sizeof(int), &k, sizeof(int));// storing the block_num of the record-Block
+    CALL_BF(BF_AllocateBlock(indexDesc, tmpBlock));             // |
+    tmpData = BF_Block_GetData(tmpBlock);                       // |->creating the record-Blocks for the 1st Index Block
+    memset(tmpData, 0, BF_BLOCK_SIZE);                          // |
+    BF_Block_SetDirty(tmpBlock);
+    CALL_BF(BF_UnpinBlock(tmpBlock));
   }
 
   BF_Block_SetDirty(mBlock);
   CALL_BF(BF_UnpinBlock(mBlock));
-
-  // CALL_BF(BF_GetBlock(fd, 1, mBlock));
-  // data = BF_Block_GetData(mBlock);
-  // for(int i=0; i<buckets; i++) {
-  //   int num = *(int*)(data + sizeof(int) + i*sizeof(int));
-  //   printf("HEHE %d\n", num);
-  // }
-  // CALL_BF(BF_UnpinBlock(mBlock));
-
   BF_Block_Destroy(&mBlock);
   BF_Block_Destroy(&tmpBlock);
   return HT_OK;
@@ -89,25 +102,62 @@ HT_ErrorCode HT_CloseFile(int indexDesc) {
   return HT_OK;
 }
 
-int hashFunctions(int indexDesc, int id) {
-  int buckets = 2;
-  char *data;
-  BF_Block *mBlock;
-  BF_Block_Init(&mBlock);
-
-  CALL_BF(BF_GetBlock(indexDesc, 0, mBlock));
-  data = BF_Block_GetData(mBlock);
-  buckets = *(int*)(data + 2 + sizeof(int));
-  printf("TOSA %d\n", buckets);
-  CALL_BF(BF_UnpinBlock(mBlock));
-  BF_Block_Destroy(&mBlock);
-
-  return id % buckets;
-}
-
 HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
   //insert code here
-  printf("ELA %d\n", hashFunctions(indexDesc, 127));
+  int block_num;
+  char *data;
+  BF_Block *mBlock, *tmpBlock;
+  BF_Block_Init(&mBlock);
+  BF_Block_Init(&tmpBlock);
+
+  CALL_BF(BF_GetBlock(indexDesc, 0, mBlock));              // Checking if a reHash is needed
+  data = BF_Block_GetData(mBlock);
+  if(*(int*)(data + 2) / *(int*)(data + 2 + sizeof(int))) {
+    // REHASH()
+  }
+  else {
+    int records_num = *(int*)(data + 2) + 1;
+    memcpy(data + 2, &records_num, sizeof(int));           // records counter++
+    BF_Block_SetDirty(mBlock);
+  }
+  CALL_BF(BF_UnpinBlock(mBlock));
+
+  CALL_BF(BF_GetBlock(indexDesc, 1, mBlock));              // Getting the currect Block for the records after hashing the id
+  data = BF_Block_GetData(mBlock);                                                   //|-> Needs to be changed after
+  block_num = *(int*)(data + (1 + hashFunctions(indexDesc, record.id))*sizeof(int)); //|  -> implementing reHash()
+  CALL_BF(BF_UnpinBlock(mBlock));
+
+  CALL_BF(BF_GetBlock(indexDesc, block_num, mBlock));      // Getting the lest Block in the BlockChain
+  data = BF_Block_GetData(mBlock);
+  block_num = *(int*)(data + 1);
+  while(block_num != 0) {
+    CALL_BF(BF_UnpinBlock(mBlock));
+    CALL_BF(BF_GetBlock(indexDesc, block_num, mBlock));
+    data = BF_Block_GetData(mBlock);
+    block_num = *(int*)(data + 1);
+  }
+
+  if(data[0] != 8) {
+    memcpy(data + 1 + sizeof(int) + data[0]*sizeof(Record), &record, sizeof(Record));
+    memset(data, data[0] + 1, 1);
+  }
+  else {
+    CALL_BF(BF_AllocateBlock(indexDesc, tmpBlock));
+    CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
+    block_num--;
+    memcpy(data + 1, &block_num, sizeof(int));
+    data = BF_Block_GetData(tmpBlock);
+    memset(data, 0, BF_BLOCK_SIZE);
+    memset(data, 1, 1);
+    memcpy(data + 1 + sizeof(int), &record, sizeof(Record));
+    BF_Block_SetDirty(tmpBlock);
+    CALL_BF(BF_UnpinBlock(tmpBlock));
+  }
+
+  BF_Block_SetDirty(mBlock);
+  CALL_BF(BF_UnpinBlock(mBlock));
+  BF_Block_Destroy(&mBlock);
+  BF_Block_Destroy(&tmpBlock);
   return HT_OK;
 }
 
