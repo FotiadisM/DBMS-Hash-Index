@@ -32,12 +32,10 @@ int hashFunctions(int indexDesc, int id) {
 }
 
 HT_ErrorCode HT_Init() {
-  //insert code here
   return HT_OK;
 }
 
 HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
-  //insert code here
   int indexDesc;
   char *data, *tmpData;
   BF_Block *mBlock, *tmpBlock;
@@ -78,7 +76,6 @@ HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
 }
 
 HT_ErrorCode HT_OpenIndex(const char *fileName, int *indexDesc){
-  //insert code here
   char *data, code[2];
   BF_Block *mBlock;
   BF_Block_Init(&mBlock);
@@ -97,13 +94,11 @@ HT_ErrorCode HT_OpenIndex(const char *fileName, int *indexDesc){
 }
 
 HT_ErrorCode HT_CloseFile(int indexDesc) {
-  //insert code here
   CALL_BF(BF_CloseFile(indexDesc));
   return HT_OK;
 }
 
 HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
-  //insert code here
   int block_num;
   char *data;
   BF_Block *mBlock, *tmpBlock;
@@ -162,11 +157,9 @@ HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
 }
 
 HT_ErrorCode HT_PrintAllEntries(int indexDesc, int *id) {
-  //insert code here
+
   for(int i=2; i<128; i++) {                     //Works only before the implementation of reHash
-    // printf("\n-----------------------\n");
     HT_PrintBlockChain(indexDesc, i, id);
-    // printf("-----------------------\n");
   }
   return HT_OK;
 }
@@ -195,7 +188,6 @@ HT_ErrorCode HT_PrintBlockChain(int indexDesc, int block_num, int* id) {
     HT_PrintBlockChain(indexDesc, *(int*)(data + 1), id);
   }
 
-  printf("\nIn Block Number: %d\n\n", block_num);
   for(int i=0; i<data[0]; i++) {
     HT_PrintRecord(data, i, id);
   }
@@ -205,6 +197,6 @@ HT_ErrorCode HT_PrintBlockChain(int indexDesc, int block_num, int* id) {
 }
 
 HT_ErrorCode HT_DeleteEntry(int indexDesc, int id) {
-  //insert code here
+
   return HT_OK;
 }
