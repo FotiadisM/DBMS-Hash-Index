@@ -163,22 +163,23 @@ HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
 
 HT_ErrorCode HT_PrintAllEntries(int indexDesc, int *id) {
   //insert code here
-  HT_UniversalPrint(indexDesc);
+  HT_UniversalPrint(indexDesc, id);
   return HT_OK;
 }
 
-void HT_PrintRecord(char *data, int i) {
+void HT_PrintRecord(char *data, int i, int* id) {
   Record record;
 
   memcpy(&record, data + 1 + sizeof(int) + i*sizeof(Record), sizeof(Record));
-
-  printf("\tID == %d\n", record.id);
-  printf("\tNAME == %s\n", record.name);
-  printf("\tSURNAME == %s\n", record.surname);
-  printf("\tCITY == %s\n", record.city);
+  if(id == NULL || record.id == *id) {
+    printf("\tID == %d\n", record.id);
+    printf("\tNAME == %s\n", record.name);
+    printf("\tSURNAME == %s\n", record.surname);
+    printf("\tCITY == %s\n\n", record.city);
+  }
 }
 
-HT_ErrorCode HT_PrintBlockChain(int indexDesc, int block_num) {
+HT_ErrorCode HT_PrintBlockChain(int indexDesc, int block_num, int* id) {
   char *data;
   BF_Block *mBlock;
   BF_Block_Init(&mBlock);
@@ -187,19 +188,19 @@ HT_ErrorCode HT_PrintBlockChain(int indexDesc, int block_num) {
   data = BF_Block_GetData(mBlock);
 
   if(*(int*)(data + 1) != 0) {
-    HT_PrintBlockChain(indexDesc, *(int*)(data + 1));
+    HT_PrintBlockChain(indexDesc, *(int*)(data + 1), id);
   }
 
-  printf("\nIn Block Number: %d\n", block_num);
+  printf("\nIn Block Number: %d\n\n", block_num);
   for(int i=0; i<data[0]; i++) {
-      HT_PrintRecord(data, i);
+      HT_PrintRecord(data, i, id);
     }
 
   CALL_BF(BF_UnpinBlock(mBlock));
   BF_Block_Destroy(&mBlock);
 }
 
-HT_ErrorCode HT_UniversalPrint(int indexDesc) {
+HT_ErrorCode HT_UniversalPrint(int indexDesc, int* id) {
   int block_num;
   char *data;
   BF_Block *mBlock, *tmpBlock;
@@ -207,9 +208,9 @@ HT_ErrorCode HT_UniversalPrint(int indexDesc) {
   BF_Block_Init(&tmpBlock);
 
   for(int i=2; i<128; i++) {                     //Works only before the implementation of reHash
-    printf("\n-----------------------\n");
-    HT_PrintBlockChain(indexDesc, i);
-    printf("-----------------------\n");
+    // printf("\n-----------------------\n");
+    HT_PrintBlockChain(indexDesc, i, id);
+    // printf("-----------------------\n");
   }
 
   BF_Block_Destroy(&mBlock);
