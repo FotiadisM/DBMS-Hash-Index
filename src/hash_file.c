@@ -197,6 +197,43 @@ HT_ErrorCode HT_PrintBlockChain(int indexDesc, int block_num, int* id) {
 }
 
 HT_ErrorCode HT_DeleteEntry(int indexDesc, int id) {
+  
+  //finds the blockchain of the block with the id to be deleted
+  //stores the last record and frees its memory or 
+  //if the last record is alone in a block destroys it
+  //copies the last record to the one to be deleted
 
+  BF_Block* mBlock;
+  BF_Block* tmpBlock;
+  char* data;
+  Record record;
+
+  Record recForDel;
+
+  BF_Block_Init(&mBlock);
+  BF_Block_Init(&tmpBlock);
+
+  CALL_BF(BF_GetBlock(indexDesc, hashFunctions(indexDesc, id) + 2, mBlock))
+  data = BF_Block_GetData(mBlock);
+  while(*(int*)(data + 1) != 8) {
+    CALL_BF(BF_GetBlock(indexDesc, *(int*)(data + 1), mBlock))
+    data = BF_Block_GetData(mBlock);
+  }
+
+  memcpy(&recForDel, data + 1 + sizeof(int) + *(int*)(data + 1)*sizeof(Record), sizeof(Record));
+  if(*(int*)(data + 1) == 1)                   //if its just 1 record delete the block
+    BF_Block_Destroy(&mBlock);
+  else
+    memset(data + 1 + sizeof(int) + *(int*)(data + 1)*sizeof(Record), 0, sizeof(Record));
+  while(*(int*)(data + 1) != 0) {
+    for(int i=0; i<data[0]; i++) {
+      memcpy(&record, data + 1 + sizeof(int) + i*sizeof(Record), sizeof(Record));
+      if(record.id == id) {
+        memcpy(data + 1 + sizeof(int) + i*sizeof(Record), &recForDel, sizeof(Record));
+      }
+    }
+    CALL_BF(BF_GetBlock(indexDesc, *(int*)(data + 1), mBlock))
+    data = BF_Block_GetData(mBlock);
+  }
   return HT_OK;
 }
