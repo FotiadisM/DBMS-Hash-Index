@@ -72,8 +72,6 @@ HT_ErrorCode HT_PrintBlockChain(int indexDesc, int block_num, int* id);
 
 void HT_PrintRecord(char *data, int i, int* id);
 
-HT_ErrorCode HT_UniversalPrint(int indexDesc, int* id);
-
 /*
  * Η συνάρτηση HP_GetEntry χρησιμοποιείται για την επιστροφή στην δομή record
  * της εγγραφής εκείνης που βρίσκεται στην rowId θέση στο αρχείο σωρού. Σε
