@@ -210,7 +210,6 @@ HT_ErrorCode HT_UniversalPrint(int indexDesc) {
     printf("\n-----------------------\n");
     HT_PrintBlockChain(indexDesc, i);
     printf("-----------------------\n");
-    CALL_BF(BF_UnpinBlock(mBlock));
   }
 
   BF_Block_Destroy(&mBlock);
