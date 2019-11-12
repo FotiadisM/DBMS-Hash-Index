@@ -146,7 +146,8 @@ HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
     data = BF_Block_GetData(mBlock);
     block_num = *(int*)(data + 1);
   }
-
+  // int free_space = BF_BLOCK_SIZE - 1 - sizeof(int) - data[0]*sizeof(Record);
+  // if(free_space>=sizeof(Record)){
   if(data[0] != 8) {
     memcpy(data + 1 + sizeof(int) + data[0]*sizeof(Record), &record, sizeof(Record));
     memset(data, data[0] + 1, 1);                   // records_counter++
@@ -179,7 +180,7 @@ HT_ErrorCode HT_PrintAllEntries(int indexDesc, int *id) {
   
   CALL_BF(BF_GetBlock(indexDesc, 0, mBlock));
   data = BF_Block_GetData(mBlock);
-
+  // for(int i=2; i<128; i++) {                     //Works only before the implementation of reHash
   for(int i=2; i<(*(int*)(data+2+sizeof(int))+1); i++) {
     HT_PrintBlockChain(indexDesc, i, id);
   }
