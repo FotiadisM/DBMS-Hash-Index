@@ -122,15 +122,15 @@ HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
 
   CALL_BF(BF_GetBlock(indexDesc, 0, mBlock));              // Checking if a reHash is needed
   data = BF_Block_GetData(mBlock);
-  if(*(int*)(data + 2) / *(int*)(data + 2 + sizeof(int))) {
+  // if(*(int*)(data + 2) / *(int*)(data + 2 + sizeof(int))) {
     //REHASH()
-  }
-  else {
+  // }
+  // else {
     int records_num = *(int*)(data + 2) + 1;
     memcpy(data + 2, &records_num, sizeof(int));           // records counter++
     BF_Block_SetDirty(mBlock);
     CALL_BF(BF_UnpinBlock(mBlock));
-  }
+  // }
   //Getting the currect Block for the records after hashing the id
   CALL_BF(BF_GetBlock(indexDesc, 1, mBlock));
   data = BF_Block_GetData(mBlock);                                                   //|-> Needs to be changed after
@@ -146,16 +146,16 @@ HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
     data = BF_Block_GetData(mBlock);
     block_num = *(int*)(data + 1);
   }
-  // int free_space = BF_BLOCK_SIZE - 1 - sizeof(int) - data[0]*sizeof(Record);
-  // if(free_space>=sizeof(Record)){
-  if(data[0] != 8) {
+  int free_space = BF_BLOCK_SIZE - 1 - sizeof(int) - data[0]*sizeof(Record);
+  if(free_space>=sizeof(Record)){
+  // if(data[0] != 8) {
     memcpy(data + 1 + sizeof(int) + data[0]*sizeof(Record), &record, sizeof(Record));
     memset(data, data[0] + 1, 1);                   // records_counter++
   }
   else {                                            // Block is full, adding a new Block in the BlockChain
     CALL_BF(BF_AllocateBlock(indexDesc, tmpBlock));
     CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
-    block_num--;
+    block_num--;  //because of index block
     memcpy(data + 1, &block_num, sizeof(int));
     data = BF_Block_GetData(tmpBlock);
     memset(data, 0, BF_BLOCK_SIZE);
@@ -180,8 +180,8 @@ HT_ErrorCode HT_PrintAllEntries(int indexDesc, int *id) {
   
   CALL_BF(BF_GetBlock(indexDesc, 0, mBlock));
   data = BF_Block_GetData(mBlock);
-  // for(int i=2; i<128; i++) {                     //Works only before the implementation of reHash
-  for(int i=2; i<(*(int*)(data+2+sizeof(int))+1); i++) {
+  // for(int i=2; i<128; i++) {   //Works only before the implementation of reHash
+  for(int i=2; i<(*(int*)(data+2+sizeof(int))+1); i++) {  //for every bucket
     HT_PrintBlockChain(indexDesc, i, id);
   }
 
@@ -196,11 +196,7 @@ void HT_PrintRecord(char *data, int i, int* id) {
 
   memcpy(&record, data + 1 + sizeof(int) + i*sizeof(Record), sizeof(Record));
   if(id == NULL || record.id == *id) {
-    // printf("\tID == %d\n", record.id);
-    // printf("\tNAME == %s\n", record.name);
-    // printf("\tSURNAME == %s\n", record.surname);
-    // printf("\tCITY == %s\n\n", record.city);
-    printf("   %d, \"%s\", \"%s\", \"%s\"\n",record.id, record.name, record.surname, record.city);
+    printf("%d, \"%s\", \"%s\", \"%s\"\n",record.id, record.name, record.surname, record.city);
   }
 }
 
