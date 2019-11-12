@@ -47,7 +47,7 @@ HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
   CALL_BF(BF_CreateFile(filename));
   CALL_BF(BF_OpenFile(filename, &indexDesc));
 
-  CALL_BF(BF_AllocateBlock(indexDesc, mBlock));                 // 1st Block == General information Block
+  CALL_BF(BF_AllocateBlock(indexDesc, mBlock));             // 1st Block == General information Block
   data = BF_Block_GetData(mBlock);
   memset(data, 0, BF_BLOCK_SIZE); // optional
   memcpy(data, "HT", 2);
@@ -55,11 +55,21 @@ HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
   memcpy(data + 2 + sizeof(int), &buckets, sizeof(int));  // storing the number of buckets
   BF_Block_SetDirty(mBlock);
   CALL_BF(BF_UnpinBlock(mBlock));
-
+  
+  // in case buckets need more than one block
+  // int num_blocks = (sizeof(int)*buckets)%BF_BLOCK_SIZE;
+  //have to add room for showing to next block
+  // num_blocks = ( sizeof(int)*(buckets+num_blocks) )%BF_BLOCK_SIZE;
+  // printf("Needs %d blocks.\n",num_blocks);
+  // if( sizeof(int)*BF_BLOCK_SIZE)
+  // 
+  // int temp_bucks=0;
+  // for(int j=0; j<num_blocks; j++){
   CALL_BF(BF_AllocateBlock(indexDesc, mBlock));                 // 2nd Block == 1st Index Block
   data = BF_Block_GetData(mBlock);
   memset(data, 0, BF_BLOCK_SIZE);
   for(int i=0; i<buckets; i++) {
+  // while( temp_bucks<buckets  )
     int k = i+2;
 
     memcpy(data + sizeof(int) + i*sizeof(int), &k, sizeof(int));// storing the block_num of the record-Block
@@ -74,6 +84,7 @@ HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
   CALL_BF(BF_UnpinBlock(mBlock));
   BF_Block_Destroy(&mBlock);
   BF_Block_Destroy(&tmpBlock);
+  // }
   return HT_OK;
 }
 
