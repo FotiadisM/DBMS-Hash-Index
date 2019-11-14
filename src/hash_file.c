@@ -39,6 +39,7 @@ HT_ErrorCode HT_Init() {
 }
 
 HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
+
   int indexDesc, block_num;;
   char *data, *tmpData;
   BF_Block *mBlock, *tmpBlock;
@@ -57,12 +58,12 @@ HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
   BF_Block_SetDirty(mBlock);
   CALL_BF(BF_UnpinBlock(mBlock));
 
-  for(int i=0; i<(buckets/BUCKETS_PER_BLOCK); i++) {
+  for(int i=0; i < (buckets/BUCKETS_PER_BLOCK); i++) {
     CALL_BF(BF_AllocateBlock(indexDesc, mBlock));
     data = BF_Block_GetData(mBlock);
     memset(data, 0, BF_BLOCK_SIZE);
 
-    for(int j=0; j<BUCKETS_PER_BLOCK; j++) {
+    for(int j=0; j < BUCKETS_PER_BLOCK; j++) {
       CALL_BF(BF_AllocateBlock(indexDesc, tmpBlock));
       CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
       block_num--;
@@ -90,7 +91,7 @@ HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
     data = BF_Block_GetData(mBlock);
     memset(data, 0, BF_BLOCK_SIZE);
 
-    for(int i=0; i<buckets%BUCKETS_PER_BLOCK; i++) {
+    for(int i=0; i < buckets%BUCKETS_PER_BLOCK; i++) {
       CALL_BF(BF_AllocateBlock(indexDesc, tmpBlock));
       CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
       block_num--;
@@ -161,45 +162,47 @@ HT_ErrorCode HT_CloseFile(int indexDesc) {
 
 HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
 
-  int block_num;
+  int block_num, hashedID;
   char *data;
   BF_Block *mBlock, *tmpBlock;
   BF_Block_Init(&mBlock);
   BF_Block_Init(&tmpBlock);
 
-  CALL_BF(BF_GetBlock(indexDesc, 0, mBlock));              // Checking if a reHash is needed
+  // Checking if a reHash is needed
+  CALL_BF(BF_GetBlock(indexDesc, 0, mBlock));
   data = BF_Block_GetData(mBlock);
-  // if(*(int*)(data + 2) / *(int*)(data + 2 + sizeof(int))) {
-    //REHASH()
-  // }
-  // else {
+  if(*(int*)(data + 2) / *(int*)(data + 2 + sizeof(int))) {
+    // REHASH() -->
+  }
+  else {
     int records_num = *(int*)(data + 2) + 1;
     memcpy(data + 2, &records_num, sizeof(int));           // records counter++
     BF_Block_SetDirty(mBlock);
     CALL_BF(BF_UnpinBlock(mBlock));
-  // }
-  //Getting the currect Block for the records after hashing the id
-  CALL_BF(BF_GetBlock(indexDesc, 1, mBlock));
-  data = BF_Block_GetData(mBlock);                                                   //|-> Needs to be changed after
-  block_num = *(int*)(data + (1 + hashFunctions(indexDesc, record.id))*sizeof(int)); //|  -> implementing reHash()
+  }
+
+  //Getting the currect Block after hashing the id
+  hashedID = hashFunctions(indexDesc, record.id);
+  CALL_BF(BF_GetBlock(indexDesc, (hashedID / 127)*(BUCKETS_PER_BLOCK + 1) + 1, mBlock));
+  data = BF_Block_GetData(mBlock); 
+  block_num = *(int*)(data + (hashedID % BUCKETS_PER_BLOCK + 1)*sizeof(int));
   CALL_BF(BF_UnpinBlock(mBlock));
 
-  CALL_BF(BF_GetBlock(indexDesc, block_num, mBlock));      // Getting the last Block in the BlockChain
+  // Getting the last Block in the Blockchain
+  CALL_BF(BF_GetBlock(indexDesc, block_num, mBlock));
   data = BF_Block_GetData(mBlock);
-  block_num = *(int*)(data + 1);
-  while(block_num != 0) {
+  while(*(int*)(data + 1) != 0) {
     CALL_BF(BF_UnpinBlock(mBlock));
-    CALL_BF(BF_GetBlock(indexDesc, block_num, mBlock));
+    CALL_BF(BF_GetBlock(indexDesc, *(int*)(data + 1), mBlock));
     data = BF_Block_GetData(mBlock);
-    block_num = *(int*)(data + 1);
   }
-  int free_space = BF_BLOCK_SIZE - 1 - sizeof(int) - data[0]*sizeof(Record);
-  if(free_space>=sizeof(Record)){
-  // if(data[0] != 8) {
+
+  //If the block is not full
+  if(data[0] != 8) {
     memcpy(data + 1 + sizeof(int) + data[0]*sizeof(Record), &record, sizeof(Record));
-    memset(data, data[0] + 1, 1);                   // records_counter++
+    memset(data, data[0] + 1, 1); // records_counter++
   }
-  else {                                            // Block is full, adding a new Block in the BlockChain
+  else { // Block is full --> add a new block in the blockchain
     CALL_BF(BF_AllocateBlock(indexDesc, tmpBlock));
     CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
     block_num--;  //because of index block
@@ -270,30 +273,42 @@ HT_ErrorCode HT_PrintBlockChain(int indexDesc, int block_num, int* id) {
 
 HT_ErrorCode HT_DeleteEntry(int indexDesc, int id) {
 
+  int block_num, hashedID;
   char* data;
   BF_Block* mBlock;
   Record record, lastRecord;
   BF_Block_Init(&mBlock);
 
-  CALL_BF(BF_GetBlock(indexDesc, hashFunctions(indexDesc, id) + 2, mBlock));
+  //Getting the currect Block after hashing the id
+  hashedID = hashFunctions(indexDesc, record.id);
+  CALL_BF(BF_GetBlock(indexDesc, (hashedID / 127)*(BUCKETS_PER_BLOCK + 1) + 1, mBlock));
+  data = BF_Block_GetData(mBlock); 
+  block_num = *(int*)(data + (hashedID % BUCKETS_PER_BLOCK + 1)*sizeof(int));
+  CALL_BF(BF_UnpinBlock(mBlock));
+
+  // Getting the last Block in the Blockchain
+  CALL_BF(BF_GetBlock(indexDesc, block_num, mBlock));
   data = BF_Block_GetData(mBlock);
-  while(*(int*)(data + 1) != 0) {             //finds the last block of the blockchain
+  while(*(int*)(data + 1) != 0) {
     CALL_BF(BF_UnpinBlock(mBlock));
     CALL_BF(BF_GetBlock(indexDesc, *(int*)(data + 1), mBlock))
     data = BF_Block_GetData(mBlock);
   }
 
-  memcpy(&lastRecord, data + 1 + sizeof(int) + data[0]*sizeof(Record), sizeof(Record)); // saves last record
-  memset(data, data[0] - 1, 1);     // records_countert--
-  memset(data + 1 + sizeof(int) + data[0]*sizeof(Record), 0, sizeof(Record)); // "deleting" lastRecord by putting 0 everywhere
+  // Saving the last record
+  memcpy(&lastRecord, data + 1 + sizeof(int) + data[0]*sizeof(Record), sizeof(Record));
+  memset(data, data[0] - 1, 1); // records_countert--
+  // "Deleting" the lastRecord by putting 0 everywhere
+  memset(data + 1 + sizeof(int) + data[0]*sizeof(Record), 0, sizeof(Record));
+  CALL_BF(BF_UnpinBlock(mBlock));
+
 
   if(lastRecord.id != id) {
-    CALL_BF(BF_UnpinBlock(mBlock));
-    CALL_BF(BF_GetBlock(indexDesc, hashFunctions(indexDesc, id) + 2, mBlock));
+    // Iterating the Blockchain to find the record tha needs to be deleted
+    CALL_BF(BF_GetBlock(indexDesc, block_num, mBlock));
     data = BF_Block_GetData(mBlock);
-
-    while(*(int*)(data + 1) != 0) {           // iterating the blockChain to find the record tha needs to be deleted
-      for(int i=0; i<data[0]; i++) {
+    while(*(int*)(data + 1) != 0) {
+      for(int i=0; i < data[0]; i++) {
         memcpy(&record, (data + 1 + sizeof(int) + i*sizeof(Record)), sizeof(Record));
         if(record.id == id) {
           memcpy(data + 1 + sizeof(int) + i*sizeof(Record), &lastRecord, sizeof(Record));
@@ -303,7 +318,9 @@ HT_ErrorCode HT_DeleteEntry(int indexDesc, int id) {
       CALL_BF(BF_GetBlock(indexDesc, *(int*)(data + 1), mBlock))
       data = BF_Block_GetData(mBlock);
     }
-    for(int i=0; i<data[0]; i++) {            // iterating the last Records in the BlockChain
+
+    // Iterating the Records in the last Block of the Blockchain
+    for(int i=0; i < data[0]; i++) {
         memcpy(&record, (data + 1 + sizeof(int) + i*sizeof(Record)), sizeof(Record));
         if(record.id == id) {
           memcpy(data + 1 + sizeof(int) + i*sizeof(Record), &lastRecord, sizeof(Record));
