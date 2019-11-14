@@ -6,6 +6,8 @@
 #include "hash_file.h"
 #define MAX_OPEN_FILES 20
 
+#define BUCKETS_PER_BLOCK 127
+
 #define CALL_BF(call)       \
 {                           \
   BF_ErrorCode code = call; \
@@ -37,7 +39,7 @@ HT_ErrorCode HT_Init() {
 }
 
 HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
-  int indexDesc;
+  int indexDesc, block_num;;
   char *data, *tmpData;
   BF_Block *mBlock, *tmpBlock;
   BF_Block_Init(&mBlock);
@@ -54,97 +56,82 @@ HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
   memcpy(data + 2 + sizeof(int), &buckets, sizeof(int));  // storing the number of buckets
   BF_Block_SetDirty(mBlock);
   CALL_BF(BF_UnpinBlock(mBlock));
-  // // // // // // // // // // // // // // // // // // // //
-  // // // // // // // // // // // // // // // // // // // // 
-  // in case buckets need more than one block to store
-  // each bucket needs sizeof(int) space, find out how many blocks are needed
-  // NT is the int at the beginning of index block that shows to the next block
-  int num_blocks, remain, bytes_withoutNT;
-  // int temp=0;
-  // for(buckets=1;buckets<1600;buckets++){
-    if( sizeof(int)*buckets <= BF_BLOCK_SIZE-sizeof(int) ){// max 127
-      num_blocks=1;
-    }
-    else{// need more than one index blocks
-      // how many blocks i need without the NT
-      bytes_withoutNT=sizeof(int)*(buckets);
-      num_blocks=bytes_withoutNT/(BF_BLOCK_SIZE-sizeof(int));
-      remain=bytes_withoutNT%(BF_BLOCK_SIZE-sizeof(int));
-      if(remain!=0){num_blocks++;}
-    }
-  //   ++temp;
-  //   if(temp==127 || temp==1){printf("%d For %d buckets need %d blocks.\n",temp,buckets,num_blocks);}
-  //   if(temp==127){printf("\n\n");}
-  //   if(temp==127){temp=0;}
-  // }
-  printf("For %d buckets i need %d blocks.\n", buckets, num_blocks);
-  // // // // // // // // // // // // // // // // // // // //
-  // // // // // // // // // // // // // // // // // // // //
-  int temp_buckets=buckets;   //used to see how many buckets have stayed
-  int k=1;
-  int up_bound;
 
-  for(int i=0; i<num_blocks; i++){
-    CALL_BF(BF_AllocateBlock(indexDesc, mBlock));                 // 2nd Block == 1st Index Block
+  for(int i=0; i<(buckets/BUCKETS_PER_BLOCK); i++) {
+    CALL_BF(BF_AllocateBlock(indexDesc, mBlock));
     data = BF_Block_GetData(mBlock);
     memset(data, 0, BF_BLOCK_SIZE);
 
-    //check if the remaining buckets need a whole block
-    if( sizeof(int)*temp_buckets>=BF_BLOCK_SIZE-sizeof(int) ){
-      up_bound=BF_BLOCK_SIZE/sizeof(int)-1;//127
-    }
-    else{
-      up_bound=temp_buckets;
-    }
-    printf("for block %d the upper bound is %d\n",i+1, up_bound);
-
-    // for(int i=0; i<buckets; i++) {
-    // for every bucket of this block
-    for(int j=0; j<up_bound; j++) {
-  //   int k = i+2;
-      k++;
-
-  //   memcpy(data + sizeof(int) + i*sizeof(int), &k, sizeof(int));// storing the block_num of the record-Block
-      memcpy(data + sizeof(int) + j*sizeof(int), &k, sizeof(int));
-      CALL_BF(BF_AllocateBlock(indexDesc, tmpBlock));             // |
-      tmpData = BF_Block_GetData(tmpBlock);                       // |->creating the record-Blocks for the 1st Index Block
-      memset(tmpData, 0, BF_BLOCK_SIZE);                          // |
-      BF_Block_SetDirty(tmpBlock);
+    for(int j=0; j<BUCKETS_PER_BLOCK; j++) {
+      CALL_BF(BF_AllocateBlock(indexDesc, tmpBlock));
+      CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
+      block_num--;
+      memcpy(data + (j+1)*sizeof(int), &block_num, sizeof(int));
       CALL_BF(BF_UnpinBlock(tmpBlock));
     }
-    temp_buckets-=up_bound;
-    if(temp_buckets>0){ //an exoun meinei buckets na mpoun se neo block 
-      k++;
-      memcpy(data, &k, sizeof(int));
+
+    if(i != (buckets/BUCKETS_PER_BLOCK - 1)) {
+      CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
+      memcpy(data, &block_num, sizeof(int));
+    }
+    else {
+      if(buckets % BUCKETS_PER_BLOCK != 0) {
+        CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
+        memcpy(data, &block_num, sizeof(int));
+      }
     }
 
     BF_Block_SetDirty(mBlock);
     CALL_BF(BF_UnpinBlock(mBlock));
-    // printf("to k vgike %d\n",k);
   }
-  // // // // // // // // // // // // // // // // // // // //
-  // // // // // // // // // // // // // // // // // // // //
-  // print index blocks
-  int records_num;// = *(int*)(data + 2) + 1;
-  int block_to_get=1;
-  for(int i=0; i<num_blocks; i++){
-    CALL_BF(BF_GetBlock(indexDesc, block_to_get, mBlock));
-    block_to_get+=128;
-    data = BF_Block_GetData(mBlock);
 
-    printf("For index block %d\n",i+1);
-    for(int j=0; j<BF_BLOCK_SIZE/sizeof(int); j++){
-      records_num=*(int*)(data+j*sizeof(int));
-      printf("\t %d\n", records_num);
+  if(buckets % BUCKETS_PER_BLOCK != 0) {
+    CALL_BF(BF_AllocateBlock(indexDesc, mBlock));
+    data = BF_Block_GetData(mBlock);
+    memset(data, 0, BF_BLOCK_SIZE);
+
+    for(int i=0; i<buckets%BUCKETS_PER_BLOCK; i++) {
+      CALL_BF(BF_AllocateBlock(indexDesc, tmpBlock));
+      CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
+      block_num--;
+      memcpy(data + (i+1)*sizeof(int), &block_num, sizeof(int));
+      CALL_BF(BF_UnpinBlock(tmpBlock));
     }
 
+    BF_Block_SetDirty(mBlock);
     CALL_BF(BF_UnpinBlock(mBlock));
   }
-  // // // // // // // // // // // // // // // // // // // //
-  // // // // // // // // // // // // // // // // // // // //
+
+  // PRINTT ALL BLOCKS
+  // CALL_BF(BF_GetBlock(indexDesc, 1, mBlock));
+  // data = BF_Block_GetData(mBlock);
+
+  // for(int i=0; i<(buckets/BUCKETS_PER_BLOCK); i++) {
+  //   printf("\n--------------------\n");
+  //   printf("Next Block: %d\n", *(int*)data);
+  //   for(int j=0; j<BUCKETS_PER_BLOCK; j++) {
+  //     printf("Block Number = %d\n", *(int*)(data + (j+1)*sizeof(int)));
+  //   }
+  //   printf("--------------------\n");
+
+  //   CALL_BF(BF_UnpinBlock(mBlock));
+  //   if(*(int*)data != 0) {
+  //     CALL_BF(BF_GetBlock(indexDesc, *(int*)data, mBlock));
+  //     data = BF_Block_GetData(mBlock);
+  //   }
+  // }
+
+  // printf("\n--------------------\n");
+  // for(int i=0; i<buckets%BUCKETS_PER_BLOCK; i++) {
+  //     printf("Block Number = %d\n", *(int*)(data + (i+1)*sizeof(int)));
+  // }
+  // printf("--------------------\n");
+  // CALL_BF(BF_UnpinBlock(mBlock));
 
   BF_Block_Destroy(&mBlock);
   BF_Block_Destroy(&tmpBlock);
+  CALL_BF(BF_CloseFile(indexDesc));
+
   return HT_OK;
 }
 
