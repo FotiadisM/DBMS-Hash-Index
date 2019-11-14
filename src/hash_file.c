@@ -103,32 +103,6 @@ HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
     CALL_BF(BF_UnpinBlock(mBlock));
   }
 
-  // PRINTT ALL BLOCKS
-  // CALL_BF(BF_GetBlock(indexDesc, 1, mBlock));
-  // data = BF_Block_GetData(mBlock);
-
-  // for(int i=0; i<(buckets/BUCKETS_PER_BLOCK); i++) {
-  //   printf("\n--------------------\n");
-  //   printf("Next Block: %d\n", *(int*)data);
-  //   for(int j=0; j<BUCKETS_PER_BLOCK; j++) {
-  //     printf("Block Number = %d\n", *(int*)(data + (j+1)*sizeof(int)));
-  //   }
-  //   printf("--------------------\n");
-
-  //   CALL_BF(BF_UnpinBlock(mBlock));
-  //   if(*(int*)data != 0) {
-  //     CALL_BF(BF_GetBlock(indexDesc, *(int*)data, mBlock));
-  //     data = BF_Block_GetData(mBlock);
-  //   }
-  // }
-
-  // printf("\n--------------------\n");
-  // for(int i=0; i<buckets%BUCKETS_PER_BLOCK; i++) {
-  //     printf("Block Number = %d\n", *(int*)(data + (i+1)*sizeof(int)));
-  // }
-  // printf("--------------------\n");
-  // CALL_BF(BF_UnpinBlock(mBlock));
-
   BF_Block_Destroy(&mBlock);
   BF_Block_Destroy(&tmpBlock);
   CALL_BF(BF_CloseFile(indexDesc));
@@ -183,7 +157,7 @@ HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
 
   //Getting the currect Block after hashing the id
   hashedID = hashFunctions(indexDesc, record.id);
-  CALL_BF(BF_GetBlock(indexDesc, (hashedID / 127)*(BUCKETS_PER_BLOCK + 1) + 1, mBlock));
+  CALL_BF(BF_GetBlock(indexDesc, (hashedID / BUCKETS_PER_BLOCK)*(BUCKETS_PER_BLOCK + 1) + 1, mBlock));
   data = BF_Block_GetData(mBlock); 
   block_num = *(int*)(data + (hashedID % BUCKETS_PER_BLOCK + 1)*sizeof(int));
   CALL_BF(BF_UnpinBlock(mBlock));
@@ -224,18 +198,43 @@ HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
 
 HT_ErrorCode HT_PrintAllEntries(int indexDesc, int *id) {
 
+  int block_num, hashedID, buckets;
   char *data;
   BF_Block *mBlock;
   BF_Block_Init(&mBlock);
-  
-  CALL_BF(BF_GetBlock(indexDesc, 0, mBlock));
-  data = BF_Block_GetData(mBlock);
-  // for(int i=2; i<128; i++) {   //Works only before the implementation of reHash
-  for(int i=2; i<(*(int*)(data+2+sizeof(int))+1); i++) {  //for every bucket
-    HT_PrintBlockChain(indexDesc, i, id);
+
+  if(id == NULL) {
+    CALL_BF(BF_GetBlock(indexDesc, 0, mBlock));
+    data = BF_Block_GetData(mBlock);
+    buckets = *(int*)(data + 2 + sizeof(int));
+    CALL_BF(BF_UnpinBlock(mBlock));
+
+    CALL_BF(BF_GetBlock(indexDesc, 1, mBlock));
+    data = BF_Block_GetData(mBlock);
+    for(int i=0; i < buckets/BUCKETS_PER_BLOCK; i++) {
+      for(int j=0; j < BUCKETS_PER_BLOCK; j++) {
+        HT_PrintBlockChain(indexDesc, *(int*)(data + (j + 1)*sizeof(int)), NULL);
+      }
+      CALL_BF(BF_UnpinBlock(mBlock));
+      CALL_BF(BF_GetBlock(indexDesc, *(int*)(data), mBlock));
+      data = BF_Block_GetData(mBlock);
+    }
+
+    for(int i=0; i < buckets%BUCKETS_PER_BLOCK; i++) {
+      HT_PrintBlockChain(indexDesc, *(int*)(data + (i + 1)*sizeof(int)), NULL);
+    }
+  }
+  else {
+    hashedID = hashFunctions(indexDesc, *id);
+    block_num = (hashedID / BUCKETS_PER_BLOCK) * (BUCKETS_PER_BLOCK + 1) + 1;
+    CALL_BF(BF_GetBlock(indexDesc, block_num, mBlock));
+    data = BF_Block_GetData(mBlock);
+
+    block_num = *(int*)(data + (hashedID%BUCKETS_PER_BLOCK + 1)*sizeof(int));
+    HT_PrintBlockChain(indexDesc, block_num, id);
+    CALL_BF(BF_UnpinBlock(mBlock));
   }
 
-  CALL_BF(BF_UnpinBlock(mBlock));
   BF_Block_Destroy(&mBlock);
   return HT_OK;
 }
@@ -246,7 +245,7 @@ void HT_PrintRecord(char *data, int i, int* id) {
 
   memcpy(&record, data + 1 + sizeof(int) + i*sizeof(Record), sizeof(Record));
   if(id == NULL || record.id == *id) {
-    printf("%d, \"%s\", \"%s\", \"%s\"\n",record.id, record.name, record.surname, record.city);
+    printf("\t%d, \"%s\", \"%s\", \"%s\"\n",record.id, record.name, record.surname, record.city);
   }
 }
 
@@ -259,12 +258,16 @@ HT_ErrorCode HT_PrintBlockChain(int indexDesc, int block_num, int* id) {
   CALL_BF(BF_GetBlock(indexDesc, block_num, mBlock))
   data = BF_Block_GetData(mBlock);
 
-  if(*(int*)(data + 1) != 0) {
-    HT_PrintBlockChain(indexDesc, *(int*)(data + 1), id);
+  for(int i=0; i<data[0]; i++) {
+    if(id == NULL) {
+      printf("\nIn Block Number: %d\n", block_num);
+      printf("--------------------\n");
+    }
+    HT_PrintRecord(data, i, id);
   }
 
-  for(int i=0; i<data[0]; i++) {
-    HT_PrintRecord(data, i, id);
+  if(*(int*)(data + 1) != 0) {
+    HT_PrintBlockChain(indexDesc, *(int*)(data + 1), id);
   }
 
   CALL_BF(BF_UnpinBlock(mBlock));
@@ -280,10 +283,10 @@ HT_ErrorCode HT_DeleteEntry(int indexDesc, int id) {
   BF_Block_Init(&mBlock);
 
   //Getting the currect Block after hashing the id
-  hashedID = hashFunctions(indexDesc, record.id);
-  CALL_BF(BF_GetBlock(indexDesc, (hashedID / 127)*(BUCKETS_PER_BLOCK + 1) + 1, mBlock));
+  hashedID = hashFunctions(indexDesc, id);
+  CALL_BF(BF_GetBlock(indexDesc, (hashedID / BUCKETS_PER_BLOCK)*(BUCKETS_PER_BLOCK + 1) + 1, mBlock));
   data = BF_Block_GetData(mBlock); 
-  block_num = *(int*)(data + (hashedID % BUCKETS_PER_BLOCK + 1)*sizeof(int));
+  block_num = *(int*)(data + (hashedID%BUCKETS_PER_BLOCK + 1)*sizeof(int));
   CALL_BF(BF_UnpinBlock(mBlock));
 
   // Getting the last Block in the Blockchain
