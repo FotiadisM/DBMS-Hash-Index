@@ -258,11 +258,11 @@ HT_ErrorCode HT_PrintBlockChain(int indexDesc, int block_num, int* id) {
   CALL_BF(BF_GetBlock(indexDesc, block_num, mBlock))
   data = BF_Block_GetData(mBlock);
 
+  if(id == NULL) {
+    printf("\nIn Block Number: %d\n", block_num);
+    printf("--------------------\n");
+  }
   for(int i=0; i<data[0]; i++) {
-    if(id == NULL) {
-      printf("\nIn Block Number: %d\n", block_num);
-      printf("--------------------\n");
-    }
     HT_PrintRecord(data, i, id);
   }
 
