@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
   printf("RUN PrintAllEntries\n");
   int id = rand() % RECORDS_NUM;
   CALL_OR_DIE(HT_PrintAllEntries(indexDesc, &id));
-  // CALL_OR_DIE(HT_PrintAllEntries(indexDesc, NULL));
+  CALL_OR_DIE(HT_PrintAllEntries(indexDesc, NULL));
 
   printf("Delete Entry with id = %d\n" ,id);
   CALL_OR_DIE(HT_DeleteEntry(indexDesc, id));

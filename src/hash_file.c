@@ -130,15 +130,15 @@ HT_ErrorCode HT_InsertEntry(int indexDesc, Record record) {
   // Checking if a reHash is needed
   CALL_BF(BF_GetBlock(indexDesc, 0, mBlock));
   data = BF_Block_GetData(mBlock);
-  if(*(int*)(data + 2) / *(int*)(data + 2 + sizeof(int))) {
+  // if(*(int*)(data + 2) / *(int*)(data + 2 + sizeof(int))) {
     // REHASH() -->
-  }
-  else {
+  // }
+  // else {
     int records_num = *(int*)(data + 2) + 1;
     memcpy(data + 2, &records_num, sizeof(int));           // records counter++
     BF_Block_SetDirty(mBlock);
     CALL_BF(BF_UnpinBlock(mBlock));
-  }
+  // }
 
   //Getting the currect Block after hashing the id
   hashedID = hashFunctions(indexDesc, record.id);

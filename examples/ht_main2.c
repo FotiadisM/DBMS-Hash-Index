@@ -7,7 +7,7 @@
 
 #define RECORDS_NUM 200 // you can change it if you want
 #define BUCKETS_NUM 200 // you can change it if you want
-#define FILE_NAME "data.db"
+#define MAX_OPEN_FILES 20
 
 const char* names[] = {
   "Yannis",
@@ -90,6 +90,10 @@ int main(int argc, char *argv[]) {
     printf("Please enter the number of files to open in the command line\n");
     return 0;
   }
+  if(atoi(argv[1]) > MAX_OPEN_FILES){
+    printf("Number of files should be at most %d.\n",MAX_OPEN_FILES);
+    return 0;
+  }
   array = malloc(atoi(argv[1])*sizeof(fileInfo));
 
   BF_Init(LRU);
@@ -124,11 +128,11 @@ int main(int argc, char *argv[]) {
     CALL_OR_DIE(HT_InsertEntry(array[r]->indexDesc, record));
   }
 
-  // printf("RUN PrintAllEntries\n");
+  printf("RUN PrintAllEntries\n");
   int id = rand() % RECORDS_NUM;
   for(int i=0; i < atoi(argv[1]); i++) {
     printf("IN FILE NUMBER : %d\n", i);
-    // CALL_OR_DIE(HT_PrintAllEntries(array[i]->indexDesc, NULL));
+    CALL_OR_DIE(HT_PrintAllEntries(array[i]->indexDesc, NULL));
     CALL_OR_DIE(HT_PrintAllEntries(array[i]->indexDesc, &id));
   }
 

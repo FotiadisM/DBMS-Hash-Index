@@ -16,4 +16,4 @@ hp3:
 
 clean:
 	@rm data*
-	@rm build/runner*
+	# @rm build/runner*

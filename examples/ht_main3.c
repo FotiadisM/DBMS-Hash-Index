@@ -122,11 +122,10 @@ int main(int argc, char *argv[]) {
     CALL_OR_DIE(HT_InsertEntry(array[r]->indexDesc, record));
   }
 
-  // printf("RUN PrintAllEntries\n");
+  printf("RUN PrintAllEntries\n");
   int id = rand() % RECORDS_NUM;
   for(int i=0; i < atoi(argv[1]); i++) {
-    printf("IN FILE NUMBER : %d\n", i);
-    // CALL_OR_DIE(HT_PrintAllEntries(array[i]->indexDesc, NULL));
+    CALL_OR_DIE(HT_PrintAllEntries(array[i]->indexDesc, NULL));
     CALL_OR_DIE(HT_PrintAllEntries(array[i]->indexDesc, &id));
   }
 
@@ -137,7 +136,6 @@ int main(int argc, char *argv[]) {
 
   printf("\nPrint Entry with id = %d\n", id); 
   for(int i=0; i < atoi(argv[1]); i++) {
-    printf("IN FILE NUMBER : %d\n", i);
     CALL_OR_DIE(HT_PrintAllEntries(array[i]->indexDesc, &id));
   }
 
@@ -146,6 +144,7 @@ int main(int argc, char *argv[]) {
 
     free(array[i]);
   }
+  
   free(array);
 
   BF_Close();
