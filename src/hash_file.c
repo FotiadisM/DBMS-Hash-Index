@@ -37,10 +37,9 @@ int hashFunctions(int indexDesc, int id) {
 HT_ErrorCode HT_Init() {
   return HT_OK;
 }
-
 HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
 
-  int indexDesc, block_num;;
+  int indexDesc, block_num, fill_buckets, all_blocks;
   char *data, *tmpData;
   BF_Block *mBlock, *tmpBlock;
   BF_Block_Init(&mBlock);
@@ -58,12 +57,22 @@ HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
   BF_Block_SetDirty(mBlock);
   CALL_BF(BF_UnpinBlock(mBlock));
 
-  for(int i=0; i < (buckets/BUCKETS_PER_BLOCK); i++) {
+  all_blocks=buckets/BUCKETS_PER_BLOCK;
+  if(buckets%BUCKETS_PER_BLOCK!=0){
+    all_blocks++;
+  }
+
+  for(int i=0; i < all_blocks; i++) {
     CALL_BF(BF_AllocateBlock(indexDesc, mBlock));
     data = BF_Block_GetData(mBlock);
     memset(data, 0, BF_BLOCK_SIZE);
 
-    for(int j=0; j < BUCKETS_PER_BLOCK; j++) {
+    fill_buckets=BUCKETS_PER_BLOCK;
+    if( i == all_blocks - 1 && buckets % BUCKETS_PER_BLOCK != 0 ){
+        fill_buckets=buckets % BUCKETS_PER_BLOCK;
+    }
+
+    for(int j=0; j < fill_buckets; j++) {
       CALL_BF(BF_AllocateBlock(indexDesc, tmpBlock));
       CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
       block_num--;
@@ -71,34 +80,10 @@ HT_ErrorCode HT_CreateIndex(const char *filename, int buckets) {
       CALL_BF(BF_UnpinBlock(tmpBlock));
     }
 
-    if(i != (buckets/BUCKETS_PER_BLOCK - 1)) {
+    if(i != all_blocks - 1) {
       CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
       memcpy(data, &block_num, sizeof(int));
     }
-    else {
-      if(buckets % BUCKETS_PER_BLOCK != 0) {
-        CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
-        memcpy(data, &block_num, sizeof(int));
-      }
-    }
-
-    BF_Block_SetDirty(mBlock);
-    CALL_BF(BF_UnpinBlock(mBlock));
-  }
-
-  if(buckets % BUCKETS_PER_BLOCK != 0) {
-    CALL_BF(BF_AllocateBlock(indexDesc, mBlock));
-    data = BF_Block_GetData(mBlock);
-    memset(data, 0, BF_BLOCK_SIZE);
-
-    for(int i=0; i < buckets%BUCKETS_PER_BLOCK; i++) {
-      CALL_BF(BF_AllocateBlock(indexDesc, tmpBlock));
-      CALL_BF(BF_GetBlockCounter(indexDesc, &block_num));
-      block_num--;
-      memcpy(data + (i+1)*sizeof(int), &block_num, sizeof(int));
-      CALL_BF(BF_UnpinBlock(tmpBlock));
-    }
-
     BF_Block_SetDirty(mBlock);
     CALL_BF(BF_UnpinBlock(mBlock));
   }
