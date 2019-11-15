@@ -5,8 +5,8 @@
 #include "bf.h"
 #include "hash_file.h"
 
-#define RECORDS_NUM 1111111 // you can change it if you want
-#define BUCKETS_NUM 111 // you can change it if you want
+#define RECORDS_NUM 1700 // you can change it if you want
+#define BUCKETS_NUM 200 // you can change it if you want
 #define FILE_NAME "data.db"
 
 const char* names[] = {
@@ -61,18 +61,20 @@ const char* cities[] = {
     }                         \
   }
 
-int main() {
+int main(int argc, char *argv[]) {
+
+  int indexDesc, r;
+
   BF_Init(LRU);
   
   CALL_OR_DIE(HT_Init());
 
-  int indexDesc;
   CALL_OR_DIE(HT_CreateIndex(FILE_NAME, BUCKETS_NUM));
   CALL_OR_DIE(HT_OpenIndex(FILE_NAME, &indexDesc));
 
   Record record;
   srand(12569874);
-  int r;
+
   printf("Insert Entries\n");
   for (int id = 0; id < RECORDS_NUM; ++id) {
     record.id = id;
@@ -88,8 +90,8 @@ int main() {
 
   printf("RUN PrintAllEntries\n");
   int id = rand() % RECORDS_NUM;
-  // CALL_OR_DIE(HT_PrintAllEntries(indexDesc, &id));
-  CALL_OR_DIE(HT_PrintAllEntries(indexDesc, NULL));
+  CALL_OR_DIE(HT_PrintAllEntries(indexDesc, &id));
+  // CALL_OR_DIE(HT_PrintAllEntries(indexDesc, NULL));
 
   printf("Delete Entry with id = %d\n" ,id);
   CALL_OR_DIE(HT_DeleteEntry(indexDesc, id));
@@ -98,4 +100,6 @@ int main() {
 
   CALL_OR_DIE(HT_CloseFile(indexDesc));
   BF_Close();
+
+  return 0;
 }

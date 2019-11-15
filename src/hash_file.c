@@ -263,10 +263,11 @@ HT_ErrorCode HT_PrintBlockChain(int indexDesc, int block_num, int* id) {
 HT_ErrorCode HT_DeleteEntry(int indexDesc, int id) {
 
   int block_num, hashedID;
-  char* data;
-  BF_Block* mBlock;
+  char *data, *tmpData;
+  BF_Block *mBlock, *tmpBlock;
   Record record, lastRecord;
   BF_Block_Init(&mBlock);
+  BF_Block_Init(&tmpBlock);
 
   //Getting the currect Block after hashing the id
   hashedID = hashFunctions(indexDesc, id);
@@ -276,21 +277,15 @@ HT_ErrorCode HT_DeleteEntry(int indexDesc, int id) {
   CALL_BF(BF_UnpinBlock(mBlock));
 
   // Getting the last Block in the Blockchain
-  CALL_BF(BF_GetBlock(indexDesc, block_num, mBlock));
-  data = BF_Block_GetData(mBlock);
-  while(*(int*)(data + 1) != 0) {
-    CALL_BF(BF_UnpinBlock(mBlock));
-    CALL_BF(BF_GetBlock(indexDesc, *(int*)(data + 1), mBlock))
-    data = BF_Block_GetData(mBlock);
+  CALL_BF(BF_GetBlock(indexDesc, block_num, tmpBlock));
+  tmpData = BF_Block_GetData(tmpBlock);
+  while(*(int*)(tmpData + 1) != 0) {
+    CALL_BF(BF_UnpinBlock(tmpBlock));
+    CALL_BF(BF_GetBlock(indexDesc, *(int*)(tmpData + 1), tmpBlock))
+    tmpData = BF_Block_GetData(tmpBlock);
   }
-
   // Saving the last record
-  memcpy(&lastRecord, data + 1 + sizeof(int) + data[0]*sizeof(Record), sizeof(Record));
-  memset(data, data[0] - 1, 1); // records_countert--
-  // "Deleting" the lastRecord by putting 0 everywhere
-  memset(data + 1 + sizeof(int) + data[0]*sizeof(Record), 0, sizeof(Record));
-  CALL_BF(BF_UnpinBlock(mBlock));
-
+  memcpy(&lastRecord, tmpData + 1 + sizeof(int) + tmpData[0]*sizeof(Record), sizeof(Record));
 
   if(lastRecord.id != id) {
     // Iterating the Blockchain to find the record tha needs to be deleted
@@ -301,6 +296,11 @@ HT_ErrorCode HT_DeleteEntry(int indexDesc, int id) {
         memcpy(&record, (data + 1 + sizeof(int) + i*sizeof(Record)), sizeof(Record));
         if(record.id == id) {
           memcpy(data + 1 + sizeof(int) + i*sizeof(Record), &lastRecord, sizeof(Record));
+          memset(tmpData, tmpData[0] - 1, 1); // records_countert--
+          // "Deleting" the lastRecord by putting 0 everywhere
+          memset(tmpData + 1 + sizeof(int) + tmpData[0]*sizeof(Record), 0, sizeof(Record));
+          BF_Block_SetDirty(tmpBlock);
+          CALL_BF(BF_UnpinBlock(tmpBlock));
         }
       }
       CALL_BF(BF_UnpinBlock(mBlock));
@@ -313,11 +313,25 @@ HT_ErrorCode HT_DeleteEntry(int indexDesc, int id) {
         memcpy(&record, (data + 1 + sizeof(int) + i*sizeof(Record)), sizeof(Record));
         if(record.id == id) {
           memcpy(data + 1 + sizeof(int) + i*sizeof(Record), &lastRecord, sizeof(Record));
+          memset(tmpData, tmpData[0] - 1, 1); // records_countert--
+          // "Deleting" the lastRecord by putting 0 everywhere
+          memset(tmpData + 1 + sizeof(int) + tmpData[0]*sizeof(Record), 0, sizeof(Record));
+          BF_Block_SetDirty(tmpBlock);
+          CALL_BF(BF_UnpinBlock(tmpBlock));
         }
       }
   }
+  else {
+    memset(tmpData, tmpData[0] - 1, 1); // records_countert--
+    // "Deleting" the lastRecord by putting 0 everywhere
+    memset(tmpData + 1 + sizeof(int) + tmpData[0]*sizeof(Record), 0, sizeof(Record));
+    BF_Block_SetDirty(tmpBlock);
+    CALL_BF(BF_UnpinBlock(tmpBlock));
+  }
+  
 
   CALL_BF(BF_UnpinBlock(mBlock));
   BF_Block_Destroy(&mBlock);
+  BF_Block_Destroy(&tmpBlock);
   return HT_OK;
 }
