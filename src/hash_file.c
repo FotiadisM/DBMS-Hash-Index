@@ -223,6 +223,7 @@ HT_ErrorCode HT_PrintAllEntries(int indexDesc, int *id) {
     for(int i=0; i < buckets%BUCKETS_PER_BLOCK; i++) {
       HT_PrintBlockChain(indexDesc, *(int*)(data + (i + 1)*sizeof(int)), NULL);
     }
+    CALL_BF(BF_UnpinBlock(mBlock));
   }
   else {
     hashedID = hashFunctions(indexDesc, *id);
